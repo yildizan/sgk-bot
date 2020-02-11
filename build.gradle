@@ -1,0 +1,28 @@
+plugins {
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '5.2.0'
+}
+
+mainClassName = 'com.yildizan.bot.sgk.Core'
+
+group 'com.yildizan.bot'
+version '1.0'
+
+sourceCompatibility = targetCompatibility = 1.8
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile 'net.dv8tion:JDA:4.1.1_104'
+    compile 'org.jsoup:jsoup:1.12.1'
+    compileOnly 'org.projectlombok:lombok:1.18.10'
+    annotationProcessor 'org.projectlombok:lombok:1.18.10'
+}
+
+shadowJar {
+    archiveFileName = 'sgk-bot.jar'
+}
+
+compileJava.options.encoding = 'UTF-8'
