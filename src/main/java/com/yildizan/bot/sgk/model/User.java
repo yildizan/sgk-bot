@@ -5,6 +5,9 @@ import lombok.Data;
 import net.dv8tion.jda.api.OnlineStatus;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 @Data
 @AllArgsConstructor
 public class User implements Comparable<User> {
@@ -13,6 +16,7 @@ public class User implements Comparable<User> {
     private OnlineStatus status;
     private boolean isSaluted;
     private long timestamp;
+    private long startedAt;
     // in seconds
     private int totalDuration;
 
@@ -27,7 +31,8 @@ public class User implements Comparable<User> {
 
     public String toString(String emoji, int index, int total, boolean inline) {
         return (inline ? "" : "```") + emoji + " " + tag + ", #" + index + " of " + total + "\n" +
-                "⏲: " + totalDuration / 3600 + "h " + (totalDuration % 3600) / 60 + "m " + totalDuration % 60 + "s" + (inline ? "" : "```");
+                "⏲: " + totalDuration / 3600 + "h " + (totalDuration % 3600) / 60 + "m " + totalDuration % 60 + "s" +
+                (startedAt != 0 ? ", \uD83C\uDF1E: " + new SimpleDateFormat("HH:mm").format(new Date(startedAt)) : "") + (inline ? "" : "```");
     }
 
     @Override

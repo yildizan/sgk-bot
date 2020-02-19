@@ -29,6 +29,7 @@ public class Core extends ListenerAdapter {
             .addEventListeners(new Core())
             .setActivity(Activity.listening("type !sgk help"))
             .build();
+        System.out.println(Constants.SELFNAME + " is online!");
     }
 
     @Override
@@ -99,7 +100,7 @@ public class Core extends ListenerAdapter {
 
     private void clear(TextChannel channel) {
         OffsetDateTime twoWeeksAgo = OffsetDateTime.now().minus(2, ChronoUnit.WEEKS);
-        List<Message> messages = new ArrayList<>();
+        final List<Message> messages = new ArrayList<>();
         for(Message m : channel.getIterableHistory()) {
             if(m.getTimeCreated().isBefore(twoWeeksAgo)) {
                 break;
@@ -111,7 +112,12 @@ public class Core extends ListenerAdapter {
         }
         // jda api restriction: deleting count should be between 2 and 100
         if(messages.size() > 1) {
-            channel.deleteMessages(messages.stream().limit(Math.min(messages.size(), 100)).collect(Collectors.toList())).queue();
+            channel.deleteMessages(messages.stream().limit(Math.min(messages.size(), 100)).collect(Collectors.toList()))
+                    .delay(1, TimeUnit.SECONDS)
+                    .flatMap(report -> channel.sendMessage(":wastebasket: bugün de temizlendik çok şükür. (" + Math.min(messages.size(), 100) + " mesaj)"))
+                    .delay(3, TimeUnit.SECONDS)
+                    .flatMap(Message::delete)
+                    .queue();
         }
     }
 
@@ -142,6 +148,7 @@ public class Core extends ListenerAdapter {
                         String salutationText = new Random().nextInt(2) == 0 ? ":dragon_face: günaydın kerkenez " : ":chipmunk: hoşgeldin sincap ";
                         send(channel, salutationText + channelMember.getAsMention());
                         localMember.setSaluted(true);
+                        localMember.setStartedAt(timestamp);
                     }
                     // update
                     int duration = localMember.getStatus() == OnlineStatus.ONLINE && channelMember.getOnlineStatus() == OnlineStatus.ONLINE ? (int) (timestamp - localMember.getTimestamp()) / 1000 : 0;
@@ -151,7 +158,7 @@ public class Core extends ListenerAdapter {
                 }
                 // add
                 else {
-                    localMembers.put(id, new User(channelMember.getUser().getAsTag(), channelMember.getOnlineStatus(), false, timestamp, 0));
+                    localMembers.put(id, new User(channelMember.getUser().getAsTag(), channelMember.getOnlineStatus(), false, timestamp, 0, 0));
                 }
             }
         }
@@ -167,7 +174,7 @@ public class Core extends ListenerAdapter {
             Map<Long, User> members = new HashMap<>();
             for(Member member : channel.getMembers()) {
                 if(!member.getUser().isBot()) {
-                    members.put(member.getIdLong(), new User(member.getUser().getAsTag(), member.getOnlineStatus(), false, timestamp, 0));
+                    members.put(member.getIdLong(), new User(member.getUser().getAsTag(), member.getOnlineStatus(), false, timestamp, 0, 0));
                 }
             }
             watches.add(new Watch(channel, members));

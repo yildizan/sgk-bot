@@ -4,25 +4,26 @@ plugins {
 }
 
 mainClassName = 'com.yildizan.bot.sgk.Core'
-
 group 'com.yildizan.bot'
 version '1.0'
-
-sourceCompatibility = targetCompatibility = 1.8
+compileJava.options.encoding = 'UTF-8'
 
 repositories {
     jcenter()
 }
 
 dependencies {
-    compile 'net.dv8tion:JDA:4.1.1_104'
+    compile('net.dv8tion:JDA:4.1.1_108') {
+        exclude module: "opus-java"
+    }
     compile 'org.jsoup:jsoup:1.12.1'
     compileOnly 'org.projectlombok:lombok:1.18.10'
     annotationProcessor 'org.projectlombok:lombok:1.18.10'
+    compile 'org.slf4j:slf4j-api:1.7.25'
+    compile 'org.slf4j:slf4j-simple:1.7.25'
 }
 
 shadowJar {
+    minimize()
     archiveFileName = 'sgk-bot.jar'
 }
-
-compileJava.options.encoding = 'UTF-8'
