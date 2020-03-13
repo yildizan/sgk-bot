@@ -2,15 +2,14 @@ package com.yildizan.bot.sgk.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
-import net.dv8tion.jda.api.entities.TextChannel;
 
+import java.io.Serializable;
 import java.util.Map;
 
 @AllArgsConstructor
-public class Watch {
+public class Watch implements Serializable {
 
-    @Getter private TextChannel channel;
+    @Getter private long channelId;
     @Getter private Map<Long, User> members;
 
 }

@@ -2,15 +2,17 @@ package com.yildizan.bot.sgk;
 
 import com.yildizan.bot.sgk.model.User;
 import com.yildizan.bot.sgk.model.Watch;
-import com.yildizan.bot.sgk.utility.Constants;
-import com.yildizan.bot.sgk.utility.Parser;
-import com.yildizan.bot.sgk.utility.Validator;
+import com.yildizan.bot.sgk.utility.*;
+import com.yildizan.bot.sgk.model.Product;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
+import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -22,24 +24,53 @@ public class Core extends ListenerAdapter {
     private ScheduledFuture<?> future;
     private boolean isFlushed = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
-    private final List<Watch> watches = new ArrayList<>();
+    private static final List<Watch> watches = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         new JDABuilder(Constants.TOKEN)
             .addEventListeners(new Core())
             .setActivity(Activity.listening("type !sgk help"))
             .build();
-        System.out.println(Constants.SELFNAME + " is online!");
+        // backup
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                Backup.write(watches);
+            }
+            catch (Exception ignored) {}
+        }));
     }
 
     @Override
-    public void onMessageReceived(MessageReceivedEvent event) {
+    public void onReady(@Nonnull ReadyEvent event) {
+        System.out.println(Constants.SELFNAME + " is online!");
+        try {
+            // continue with previous watches
+            watches.addAll(Backup.read());
+            if(!watches.isEmpty()) {
+                future = executor.scheduleAtFixedRate(() -> watch(event.getJDA()), 0, Constants.WATCH_PERIOD, TimeUnit.MINUTES);
+            }
+        }
+        catch (Exception e) {
+            watches.clear();
+        }
+    }
+
+    @Override
+    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
         if(event.getAuthor().isBot() || !Validator.validateCommand(event.getMessage().getContentRaw()) || event.getChannelType() != ChannelType.TEXT) {
             return;
         }
         Message message = event.getMessage();
         TextChannel channel = event.getTextChannel();
         String command = message.getContentRaw().toLowerCase();
+
+        // uncomment on test
+        /*
+        if(!event.getAuthor().getAsTag().equals(Constants.OWNER)) {
+            send(channel, "\uD83E\uDDEA testteyim.");
+            return;
+        }
+        */
 
         List<String> tokens = Arrays.asList(command.split("\\s+"));
         if(!Validator.validateParameter(tokens)) {
@@ -67,18 +98,38 @@ public class Core extends ListenerAdapter {
                 case "durum":
                     display(event, User.ALL);
                     break;
+                case "menü":
+                    send(channel, Waiter.showMenu());
+                    break;
                 default:
                     send(channel, ":face_with_monocle: komutu yanlış/eksik girmiş olabilir misin?");
                     break;
             }
         }
         else if(tokens.size() == 3) {
-            int position = Parser.extractStatus(tokens);
-            if(position > 0) {
-                display(event, position);
-            }
-            else {
-                send(channel, ":wolf: ya düzgün parametre gir ya terk et...");
+            switch (tokens.get(1)) {
+                case "durum":
+                    int position = Parser.extractStatus(tokens);
+                    if(position > 0) {
+                        display(event, position);
+                    }
+                    else {
+                        send(channel, ":wolf: ya düzgün parametre gir ya terk et...");
+                    }
+                    break;
+                case "dürüm":
+                    if(buy(channel, event.getAuthor().getIdLong(), Parser.extractId(command), Waiter.order(0))) {
+                        message.delete().queue();
+                    }
+                    break;
+                case "ayran":
+                    if(buy(channel, event.getAuthor().getIdLong(), Parser.extractId(command), Waiter.order(1))) {
+                        message.delete().queue();
+                    }
+                    break;
+                default:
+                    send(channel, ":alien: böyle bir parametre yok, böyle bir parametreye gerek yok.");
+                    break;
             }
         }
         else {
@@ -86,16 +137,19 @@ public class Core extends ListenerAdapter {
         }
     }
 
-    private void send(TextChannel channel, String message) {
+    private void send(MessageChannel channel, String message) {
         channel.sendMessage(message).queue();
     }
 
     private void showHelp(TextChannel channel) {
-        send(channel, "`!sgk ölç`: " + Constants.START_HOUR + "-" + Constants.END_HOUR + " saatleri arasında " + Constants.WATCH_PERIOD + " dakikada bir süreleri ölçer.");
-        send(channel, "`!sgk sal`: süre ölçmeyi bırakır.");
-        send(channel, "`!sgk durum`: tüm süreleri gösterir.");
-        send(channel, "`!sgk durum [ilk|son|ben]`: istenen sıradaki kişiyi gösterir.");
-        send(channel, "`!sgk clear`: bot tarafından gönderilen mesajları ve komutları temizler.");
+        String commands = "`!sgk ölç`: " + Constants.START_HOUR + "-" + Constants.END_HOUR + " saatleri arasında " + Constants.WATCH_PERIOD + " dakikada bir süreleri ölçer.\n" +
+                            "`!sgk sal`: süre ölçmeyi bırakır.\n" +
+                            "`!sgk durum`: tüm süreleri gösterir.\n" +
+                            "`!sgk durum [ilk|son|ben|@kullanıcı]`: belirtilen sıradaki veya etiketlenen kişiyi gösterir.\n" +
+                            "`!sgk [dürüm|ayran] @kullanıcı`: etiketlenen kişiye dürüm veya ayran ısmarlanır.\n" +
+                            "`!sgk menü`: dürüm ve ayran fiyatlarını gösterir.\n" +
+                            "`!sgk clear`: bot tarafından gönderilen mesajları ve komutları temizler.";
+        send(channel, commands);
     }
 
     private void clear(TextChannel channel) {
@@ -105,8 +159,7 @@ public class Core extends ListenerAdapter {
             if(m.getTimeCreated().isBefore(twoWeeksAgo)) {
                 break;
             }
-            else if((m.getAuthor().isBot() && m.getAuthor().getName().equals(Constants.SELFNAME)) ||
-                    Validator.validateCommand(m.getContentRaw())) {
+            else if((m.getAuthor().isBot() && m.getAuthor().getName().equals(Constants.SELFNAME)) || Validator.validateCommand(m.getContentRaw())) {
                 messages.add(m);
             }
         }
@@ -121,11 +174,11 @@ public class Core extends ListenerAdapter {
         }
     }
 
-    private void watch() {
+    private void watch(JDA jda) {
         // watch only in working hours and weekdays
         if(!Validator.validateTime()) {
             if(!isFlushed) {
-                watches.forEach(w -> w.getMembers().clear());
+                watches.forEach(w -> w.getMembers().values().forEach(User::reset));
                 isFlushed = true;
             }
             return;
@@ -136,15 +189,23 @@ public class Core extends ListenerAdapter {
 
         long timestamp = System.currentTimeMillis();
         for(Watch watch : watches) {
-            TextChannel channel = watch.getChannel();
-            List<Member> channelMembers = channel.getMembers().stream().filter(m -> !m.getUser().isBot()).collect(Collectors.toList());
+            TextChannel channel = jda.getTextChannelById(watch.getChannelId());
+            if(channel == null) {
+                watches.remove(watch);
+                continue;
+            }
+
+            List<Member> channelMembers = channel.getMembers()
+                                                .stream()
+                                                .filter(m -> !m.getUser().isBot() && (m.getOnlineStatus(ClientType.DESKTOP) == OnlineStatus.ONLINE || m.getOnlineStatus(ClientType.WEB) == OnlineStatus.ONLINE))
+                                                .collect(Collectors.toList());
             Map<Long, User> localMembers = watch.getMembers();
             for(Member channelMember : channelMembers) {
                 long id = channelMember.getIdLong();
                 if(localMembers.containsKey(id)) {
                     User localMember = localMembers.get(id);
                     // salute
-                    if(!localMember.isSaluted() && localMember.getStatus() != OnlineStatus.ONLINE && channelMember.getOnlineStatus() == OnlineStatus.ONLINE) {
+                    if(!localMember.isSaluted() && channelMember.getOnlineStatus() == OnlineStatus.ONLINE) {
                         String salutationText = new Random().nextInt(2) == 0 ? ":dragon_face: günaydın kerkenez " : ":chipmunk: hoşgeldin sincap ";
                         send(channel, salutationText + channelMember.getAsMention());
                         localMember.setSaluted(true);
@@ -152,13 +213,16 @@ public class Core extends ListenerAdapter {
                     }
                     // update
                     int duration = localMember.getStatus() == OnlineStatus.ONLINE && channelMember.getOnlineStatus() == OnlineStatus.ONLINE ? (int) (timestamp - localMember.getTimestamp()) / 1000 : 0;
+                    if(localMember.getTotalDuration() / 3600 != (localMember.getTotalDuration() + duration) / 3600) {
+                        localMember.setBalance(localMember.getBalance() + 1);
+                    }
                     localMember.setTotalDuration(localMember.getTotalDuration() + duration);
                     localMember.setStatus(channelMember.getOnlineStatus());
                     localMember.setTimestamp(timestamp);
                 }
                 // add
                 else {
-                    localMembers.put(id, new User(channelMember.getUser().getAsTag(), channelMember.getOnlineStatus(), false, timestamp, 0, 0));
+                    localMembers.put(id, new User(channelMember.getUser().getAsTag(), channelMember.getOnlineStatus(), false, timestamp, 0, 0, 0));
                 }
             }
         }
@@ -168,23 +232,23 @@ public class Core extends ListenerAdapter {
         if(!isWatching(channel)) {
             // start batch job if not running
             if(watches.isEmpty()) {
-                future = executor.scheduleAtFixedRate(this::watch, 0, Constants.WATCH_PERIOD, TimeUnit.MINUTES);
+                future = executor.scheduleAtFixedRate(() -> watch(channel.getJDA()), 0, Constants.WATCH_PERIOD, TimeUnit.MINUTES);
             }
             long timestamp = System.currentTimeMillis();
             Map<Long, User> members = new HashMap<>();
             for(Member member : channel.getMembers()) {
                 if(!member.getUser().isBot()) {
-                    members.put(member.getIdLong(), new User(member.getUser().getAsTag(), member.getOnlineStatus(), false, timestamp, 0, 0));
+                    members.put(member.getIdLong(), new User(member.getUser().getAsTag(), member.getOnlineStatus(), false, timestamp, 0, 0, 0));
                 }
             }
-            watches.add(new Watch(channel, members));
+            watches.add(new Watch(channel.getIdLong(), members));
         }
         send(channel, ":detective: izlemedeyim.");
     }
 
     private void stopWatching(TextChannel channel) {
         if(isWatching(channel)) {
-            watches.removeIf(c -> c.getChannel().getGuild().getName().equals(channel.getGuild().getName()));
+            watches.removeIf(w -> w.getChannelId() == channel.getIdLong());
             // terminate batch job if no watch exists
             if(watches.isEmpty()) {
                 future.cancel(true);
@@ -194,11 +258,42 @@ public class Core extends ListenerAdapter {
     }
 
     private Optional<Watch> getWatch(TextChannel channel) {
-        return watches.stream().filter(w -> w.getChannel().getGuild().getName().equals(channel.getGuild().getName())).findFirst();
+        return watches.stream().filter(w -> w.getChannelId() == channel.getIdLong()).findAny();
     }
 
     private boolean isWatching(TextChannel channel) {
         return getWatch(channel).isPresent();
+    }
+
+    private boolean buy(TextChannel channel, long buyerId, long eaterId, Product product) {
+        Optional<Watch> watch = getWatch(channel);
+        if(watch.isPresent() && eaterId > 0) {
+            User buyer = watch.get().getMembers().get(buyerId);
+            int quantity = 1;
+            if(buyer.getBalance() - product.getPrice() >= 0) {
+                buyer.setBalance(buyer.getBalance() - product.getPrice());
+
+                // order
+                String buyerTag = "<@!" + buyerId + ">";
+                String eaterTag = "<@!" + eaterId + ">";
+                String orderText = buyerTag + " :arrow_right: " + eaterTag + ": " + product.getEmoji() + product.getText();
+                send(channel, orderText);
+
+                // invoice
+                String invoiceText =  "`\uD83E\uDDFE tutar: " + quantity + " x " + product.getEmoji() + " = \uD83D\uDCB2" + quantity * product.getPrice() +", kalan: \uD83D\uDCB0" + buyer.getBalance() + '`';
+                channel.getMembers()
+                        .stream()
+                        .filter(m -> m.getIdLong() == buyerId)
+                        .findFirst()
+                        .ifPresent(m -> m.getUser().openPrivateChannel().queue(privateChannel -> send(privateChannel, invoiceText)));
+                return true;
+            }
+            // insufficient balance
+            else {
+                send(channel, "¯\\_(ツ)_/¯ para yok.");
+            }
+        }
+        return false;
     }
 
     private void display(MessageReceivedEvent event, int position) {
@@ -223,7 +318,7 @@ public class Core extends ListenerAdapter {
         switch (position) {
             case User.SELF:
                 User self = watch.get().getMembers().get(event.getAuthor().getIdLong());
-                if(Objects.nonNull(self)) {
+                if(self != null) {
                     send(channel, self.toString("\uD83D\uDC68", members.indexOf(self) + 1, size));
                 }
                 break;
@@ -232,6 +327,13 @@ public class Core extends ListenerAdapter {
                 break;
             case User.LOSER:
                 send(channel, members.get(members.size() - 1).toString("\uD83D\uDCA9", size, size));
+                break;
+            case User.TAG:
+                String message = event.getMessage().getContentRaw();
+                User user = watch.get().getMembers().get(Parser.extractId(message));
+                if(user != null) {
+                    send(channel, user.toString("\uD83D\uDC68", members.indexOf(user) + 1, size));
+                }
                 break;
             case User.ALL:
                 StringBuilder leaderboard = new StringBuilder("```");
