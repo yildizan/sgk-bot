@@ -34,10 +34,32 @@ public final class Parser {
 
     public static long extractId(String command) {
         try {
-            return Long.parseLong(command.substring(command.indexOf('<') + 3, command.indexOf('>')));
+            if(command.contains("<@!")) {
+                return Long.parseLong(command.substring(command.lastIndexOf('!') + 1, command.indexOf('>')));
+            }
+            else {
+                throw new IllegalArgumentException();
+            }
         }
         catch (Exception e) {
             return 0;
+        }
+    }
+
+    public static String extractMention(String command) {
+        try {
+            if(command.contains("<")) {
+                return command.substring(command.indexOf('<'));
+            }
+            else if(command.contains("@")) {
+                return command.substring(command.indexOf('@'));
+            }
+            else {
+                throw new IllegalArgumentException();
+            }
+        }
+        catch (Exception e) {
+            return "";
         }
     }
 

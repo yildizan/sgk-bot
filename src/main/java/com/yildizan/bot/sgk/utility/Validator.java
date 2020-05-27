@@ -1,5 +1,6 @@
 package com.yildizan.bot.sgk.utility;
 
+import javax.annotation.Nonnull;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -14,7 +15,7 @@ public final class Validator {
         return text != null && text.startsWith("!sgk");
     }
 
-    public static boolean validateParameter(List<String> tokens) {
+    public static boolean validateParameter(@Nonnull List<String> tokens) {
         return Arrays.asList(Constants.PARAMETERS).containsAll(tokens.stream().filter(t -> t.matches("[a-zA-Z]+")).collect(Collectors.toList()));
     }
 

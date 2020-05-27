@@ -17,9 +17,10 @@ You can invite the bot to your server with this [link](https://discordapp.com/oa
 * `!sgk help`: display commands and parameters
 * `!sgk ölç`: watch channel members' online durations
 * `!sgk sal`: stop watch
-* `!sgk durum`: display durations
-* `!sgk durum [ilk|son|ben]`: display duration of [first | last | self] user
-* `!sgk [dürüm|ayran] @user`: buy [taco | ayran] for tagged user
+* `!sgk forbes`: display by balance
+* `!sgk durum`: display by duration
+* `!sgk durum [ilk|son|ben]`: display [ first | last | self ] user
+* `!sgk [dürüm|ayran] @mention`: buy [ taco | ayran ] for mentioned user or group
 * `!sgk menü`: display menu of food and drinks
 * `!sgk clear`: delete messages of bot and commands
 
